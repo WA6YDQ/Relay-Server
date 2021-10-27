@@ -46,20 +46,12 @@
 
 int main(void)
 {
-  /*
-  int listenfd = 0,connfd = 0;
-  int n=0;
-
-  struct sockaddr_in serv_addr, cli_addr;
-  int clilen = sizeof(cli_addr);
-  char sendBuff[1025], recvBuff[1024];  
-  int numrv;  
-  */
 
   int sockfd = 0, n=0, bytesAvailable = 0;
   char sendBuff[1024], recvBuff[1024];
   struct sockaddr_in serv_addr;
   time_t sec_now, sec_past;
+  int FLAG1 = 0;
 
   /* set up the hardware ports */
   wiringPiSetup();
@@ -98,14 +90,18 @@ int main(void)
   }
 
   memset(recvBuff,0,sizeof(recvBuff));
-  n = read(sockfd, recvBuff, sizeof(recvBuff)-1);		// look for 'READY' send at 1st connect
+  n = read(sockfd, recvBuff, sizeof(recvBuff)-1);		// look for 'READY' sent at 1st connect
   recvBuff[n] = 0;
   if (strncmp(recvBuff,"READY",5)==0) {
 	  printf("%s\n",recvBuff);
   } else {
-	  printf("unknown server response: %s\n",recvBuff);
+	  fprintf(stderr,"unknown server response: %s\n",recvBuff);
+	  close(sockfd);		// something wrong, abort now
+	  fprintf(stderr,"Closing connection\n");
+	  return 1;
   }
 
+  FLAG1=1;		// initialize for later
 
   while (1) {		// do forever
 
@@ -122,24 +118,29 @@ int main(void)
 		  fprintf(stderr,"Received unknown response from server: %s\n",recvBuff);
 		  continue;
 	  }
-continue;
 
-	  // look for button press - 
-	  if (digitalRead(BUTTON1) == 0) {		// button 1 pressed
-		  strcpy(sendBuff,"relay1_ON");
+	  // user pressed button
+	  if (digitalRead(BUTTON1)==0 && FLAG1) {		// button 1 pressed
+		  FLAG1 = 0;						// follows button value
+		  strcpy(sendBuff,"relay1_ON");		// send command to server
 		  write(sockfd, sendBuff, strlen(sendBuff));
 		  memset(recvBuff,0,sizeof(recvBuff));
 		  n = read(sockfd, recvBuff, sizeof(recvBuff)-1);
 		  recvBuff[n] = 0;
 		  printf("reply received: %s\n",recvBuff);
+
 		  if (strncmp(recvBuff,"r1on",4)==0) {		// good reply
 			  digitalWrite(LEDPTT,1);
 		  } else {
 			  digitalWrite(LEDPTT,0);			// bad or no replay - no LED
 		  }
-		  // now wait until user releases the button
-		  while (digitalRead(BUTTON1) ==0) ;		// do forever
-		  // user released button
+		  usleep(80000);		// debounce the button
+		  continue;
+	  }
+	  
+	  // user releases button
+	  if (digitalRead(BUTTON1)==1 && !FLAG1) {
+		  FLAG1 = 1;
 		  strcpy(sendBuff,"relay1_OFF");
 		  write(sockfd, sendBuff, strlen(sendBuff));
 		  memset(recvBuff,0,sizeof(recvBuff));
@@ -151,10 +152,10 @@ continue;
 		  } else {
 			digitalWrite(LEDPTT,1);			// keep LED on
 		  }
-		  // debounce the button
-		  usleep(80000);		// 80 msec
+		  usleep(80000);		// debounce the button
 		  continue;
 	}
+
   }
 
 }

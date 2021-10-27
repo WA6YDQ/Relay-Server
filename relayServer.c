@@ -115,6 +115,7 @@ readloop:
 				  fprintf(stderr,"No response from client - closing connection\n");
 				  close(connfd);
 				  digitalWrite(RELAY1PIN,0); // turn off relay
+				  fprintf(stderr,"relay 1 OFF\n");
 				  goto resumeLoop;
 			 }
 			 // buffer has data - test for OK
@@ -124,6 +125,7 @@ readloop:
 				 fprintf(stderr,"Bad response from client - closing connection\n");
 				 close(connfd);
 				 digitalWrite(RELAY1PIN,0); // turn off relay
+				 fprintf(stderr,"relay 1 OFF\n");
 				 goto resumeLoop;
 		     }
 			 curtime = time(NULL);		// reset timer
@@ -143,6 +145,7 @@ readloop:
 		  if (strncmp(recvBuff,"CLOSE",5)==0) {
 			  close(connfd);
 			  digitalWrite(RELAY1PIN,0); // turn off relay
+			  fprintf(stderr,"relay 1 OFF\n");
 			  fprintf(stderr,"Received CLOSE from client\n");
               goto resumeLoop;
 		  }
@@ -174,6 +177,8 @@ readloop:
   	  
   // should never get to this point
   fprintf(stderr,"Unexpected failure - stopping.\n");
+  fprintf(stderr,"relay 1 OFF\n");
+  digitalWrite(RELAY1PIN,0);		// turn OFF relay
   close(connfd);    
   return 0;
 }
