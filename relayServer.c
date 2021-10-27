@@ -3,7 +3,7 @@
  *
  * k theis 10/2021
  * runs on raspberry pi.
- * NOTE: only runs in IPV4
+ * NOTE: only runs in IPv4, IPv6 not supported. 
  *
  * Before starting:
  * To access the GPIO hardware you will need to be part of the GPIO group.
@@ -29,6 +29,7 @@
 
 
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -40,11 +41,13 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <wiringPi.h>
+#include <time.h>
 
 int main(void)
 {
   int listenfd = 0,connfd = 0;
-  int n=0;
+  int n=0, bytesAvailable;
+  time_t curtime;
 
   struct sockaddr_in serv_addr, cli_addr;
   int clilen = sizeof(cli_addr);
@@ -64,7 +67,8 @@ int main(void)
   
   memset(&serv_addr, '0', sizeof(serv_addr));
   memset(sendBuff, '0', sizeof(sendBuff));
-      
+  bytesAvailable = 0;    
+
   serv_addr.sin_family = AF_INET;    
   serv_addr.sin_addr.s_addr = htonl(INADDR_ANY); /* same as 0.0.0.0 */
   serv_addr.sin_port = htons(PORT);    
@@ -83,7 +87,7 @@ resumeLoop:    /* goto's are bad, but... */
 	  printf("Connection request from %s\n", inet_ntoa(cli_addr.sin_addr));
 
 	  /* send initial message */
-      strcpy(sendBuff, "READY\n");
+      strcpy(sendBuff, "READY");
       write(connfd, sendBuff, strlen(sendBuff));
  
 	  /* look for commands from client */
@@ -91,9 +95,46 @@ readloop:
 	  /* init buffer */
 	  memset(&recvBuff,0,sizeof(recvBuff));
 	  n = 0;
-	  sleep(1);
+	  curtime = time(NULL);
+	  while (1) {	// while connected
+		  
+		  usleep(20000);		// delay 20 msec to keep cpu activity down
 
-	  while((n = read(connfd, recvBuff, sizeof(recvBuff)-1)) > 0) {
+		  /* since the network connection can be lost, test it by pinging the client 
+		   * every few seconds. If no response, close the connection, open any closed
+		   * relays then go back and look for new connections.
+		   */
+
+		  if (time(NULL) > curtime+5) {		// see if network connection is still up
+			  bytesAvailable = 0;
+			  strcpy(sendBuff,"PING");
+			  write(connfd, sendBuff, strlen(sendBuff));
+			  sleep(1);
+			  ioctl(connfd, FIONREAD, &bytesAvailable);
+			  if (bytesAvailable < 1) {		// no response - close connection
+				  fprintf(stderr,"No response from client - closing connection\n");
+				  close(connfd);
+				  digitalWrite(RELAY1PIN,0); // turn off relay
+				  goto resumeLoop;
+			 }
+			 // buffer has data - test for OK
+			 n = read(connfd, recvBuff, sizeof(recvBuff)-1);
+			 recvBuff[n] = 0;
+			 if (strncmp(recvBuff,"OK",2) != 0) {	// bad response, close connection
+				 fprintf(stderr,"Bad response from client - closing connection\n");
+				 close(connfd);
+				 digitalWrite(RELAY1PIN,0); // turn off relay
+				 goto resumeLoop;
+		     }
+			 curtime = time(NULL);		// reset timer
+		  }
+
+		  /* see if client sent us anything */
+		  ioctl(connfd, FIONREAD, &bytesAvailable);
+		  if (bytesAvailable == 0) continue;
+
+		  /* input available, get data */
+		  n = read(connfd, recvBuff, sizeof(recvBuff)-1);
 		  recvBuff[n] = 0;  	/* n is size of chars read */
 
 		  /* test response from client */
@@ -101,25 +142,11 @@ readloop:
 		  /* terminate connection */
 		  if (strncmp(recvBuff,"CLOSE",5)==0) {
 			  close(connfd);
+			  digitalWrite(RELAY1PIN,0); // turn off relay
 			  fprintf(stderr,"Received CLOSE from client\n");
               goto resumeLoop;
 		  }
 
-		 /* network link */
-		  if (strncmp(recvBuff,"PING",4)==0) {
-			  strcpy(sendBuff,"OK\n");
-			  write(connfd, sendBuff, strlen(sendBuff));
-			  close(connfd);
-			  goto resumeLoop;
-	     }
-
-		 /* show commands if requested */
-		 if (strncmp(recvBuff,"HELP",4)==0) {
-			 strcpy(sendBuff,"relay#_ON/relay#_OFF w/#=1-4\n");
-			 write(connfd, sendBuff, strlen(sendBuff));
-			 close(connfd);
-			 goto resumeLoop;
-		 }
 
 
 		 /* Relay #1 */
@@ -128,84 +155,25 @@ readloop:
 			 fprintf(stderr,"relay 1 ON\n");		// local display
 			 strcpy(sendBuff,"r1on\n");
 			 write(connfd, sendBuff, strlen(sendBuff));	// remote display
-			 close(connfd);		// close connection
-			 goto resumeLoop;
+			 continue;
 		 }
 		 if (strncmp(recvBuff,"relay1_OFF",10)==0) {
 		 	 digitalWrite(RELAY1PIN,0);	// turn off relay 
 			 fprintf(stderr,"relay 1 OFF\n");		// local display
 			 strcpy(sendBuff,"r1off\n");
 			 write(connfd, sendBuff, strlen(sendBuff));	// remote display
-		 	 close(connfd);
-			 goto resumeLoop;
+			 continue;
 	     }
-
-
-		/* Relay #2 */
-         if (strncmp(recvBuff,"relay2_ON",9)==0) {
-             digitalWrite(RELAY2PIN,1); 			// turn on relay 
-             fprintf(stderr,"relay 2 ON\n");        // local display
-             strcpy(sendBuff,"r2on\n");
-             write(connfd, sendBuff, strlen(sendBuff)); // remote display
-             close(connfd);     					// close connection
-             goto resumeLoop;
-         }
-         if (strncmp(recvBuff,"relay2_OFF",10)==0) {
-             digitalWrite(RELAY2PIN,0); 			// turn off relay
-             fprintf(stderr,"relay 2 OFF\n");       // local display
-             strcpy(sendBuff,"r2off\n");
-             write(connfd, sendBuff, strlen(sendBuff)); // remote display
-             close(connfd);							// close connection
-             goto resumeLoop;
-         }
-
-		/* Relay #3 */
-         if (strncmp(recvBuff,"relay3_ON",9)==0) {
-             digitalWrite(RELAY3PIN,1); // turn on relay 1
-             fprintf(stderr,"relay 3 ON\n");        // local display
-             strcpy(sendBuff,"r3on\n");
-             write(connfd, sendBuff, strlen(sendBuff)); // remote display
-             close(connfd);     // close connection
-             goto resumeLoop;
-         }
-         if (strncmp(recvBuff,"relay3_OFF",10)==0) {
-             digitalWrite(RELAY3PIN,0); // turn off relay 1
-             fprintf(stderr,"relay 3 OFF\n");       // local display
-             strcpy(sendBuff,"r3off\n");
-             write(connfd, sendBuff, strlen(sendBuff)); // remote display
-             close(connfd);
-             goto resumeLoop;
-         }
-
-
-		 /* Relay #4 */
-         if (strncmp(recvBuff,"relay4_ON",9)==0) {
-             digitalWrite(RELAY4PIN,1); // turn on relay 1
-             fprintf(stderr,"relay 4 ON\n");        // local display
-             strcpy(sendBuff,"r4on\n");
-             write(connfd, sendBuff, strlen(sendBuff)); // remote display
-             close(connfd);     // close connection
-             goto resumeLoop;
-         }
-         if (strncmp(recvBuff,"relay4_OFF",10)==0) {
-             digitalWrite(RELAY4PIN,0); // turn off relay 1
-             fprintf(stderr,"relay 4 OFF\n");       // local display
-             strcpy(sendBuff,"r4off\n");
-             write(connfd, sendBuff, strlen(sendBuff)); // remote display
-             close(connfd);
-             goto resumeLoop;
-         }
 
 
 
 	}
 
-	  goto readloop;	/* shouldn't get here, but just in case */
+	  goto readloop;	/* connection broken - continue */
   }
-	  printf("Unexpected close with client\n");
-      close(connfd);    
-      sleep(1);
- 
- 
+  	  
+  // should never get to this point
+  fprintf(stderr,"Unexpected failure - stopping.\n");
+  close(connfd);    
   return 0;
 }
