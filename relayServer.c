@@ -20,12 +20,9 @@
 
 
 #define PORT 9000			/* server port - this server listens on this port # */
-
+#define TIMEOUT 10			/* ping timeout */
 /* wire the relay circuit to the hardware pins defined below */
 #define RELAY1PIN	4		/* GPIO 23 is ***hardware pin 16*** and wiringPi pin 4 */
-#define RELAY2PIN   5		/* GPIO 24 is ***hardware pin 18*** and wiringPi pin 5 */
-#define RELAY3PIN	6		/* GPIO 25 is ***hardware pin 22*** and wiringPi pin 6 */
-#define RELAY4PIN	27		/* GPIO 16 is ***hardware pin 36*** and wiringPi pin 27 */
 
 
 #include <sys/socket.h>
@@ -47,6 +44,7 @@ int main(void)
 {
   int listenfd = 0,connfd = 0;
   int n=0, bytesAvailable;
+  int FLAG = 0;
   time_t curtime;
 
   struct sockaddr_in serv_addr, cli_addr;
@@ -57,9 +55,6 @@ int main(void)
   /* set up the hardware ports */
   wiringPiSetup();
   pinMode(RELAY1PIN, OUTPUT);
-  pinMode(RELAY2PIN, OUTPUT);
-  pinMode(RELAY3PIN, OUTPUT);
-  pinMode(RELAY4PIN, OUTPUT);
 
   /* initialize the TCP/IP port */
   printf("Starting server:\n");
@@ -105,7 +100,7 @@ readloop:
 		   * relays then go back and look for new connections.
 		   */
 
-		  if (time(NULL) > curtime+5) {		// see if network connection is still up
+		  if (!FLAG && (time(NULL) > curtime+10)) {		// see if network connection is still up
 			  bytesAvailable = 0;
 			  strcpy(sendBuff,"PING");
 			  write(connfd, sendBuff, strlen(sendBuff));
@@ -147,23 +142,25 @@ readloop:
 			  digitalWrite(RELAY1PIN,0); // turn off relay
 			  fprintf(stderr,"relay 1 OFF\n");
 			  fprintf(stderr,"Received CLOSE from client\n");
-              goto resumeLoop;
+                          goto resumeLoop;
 		  }
 
 
 
 		 /* Relay #1 */
 		 if (strncmp(recvBuff,"relay1_ON",9)==0) {
+			 FLAG = 1;
 			 digitalWrite(RELAY1PIN,1);	// turn on relay 
 			 fprintf(stderr,"relay 1 ON\n");		// local display
-			 strcpy(sendBuff,"r1on\n");
+			 strcpy(sendBuff,"r1on");
 			 write(connfd, sendBuff, strlen(sendBuff));	// remote display
 			 continue;
 		 }
 		 if (strncmp(recvBuff,"relay1_OFF",10)==0) {
-		 	 digitalWrite(RELAY1PIN,0);	// turn off relay 
+		 	 FLAG = 0;
+			 digitalWrite(RELAY1PIN,0);	// turn off relay 
 			 fprintf(stderr,"relay 1 OFF\n");		// local display
-			 strcpy(sendBuff,"r1off\n");
+			 strcpy(sendBuff,"r1off");
 			 write(connfd, sendBuff, strlen(sendBuff));	// remote display
 			 continue;
 	     }

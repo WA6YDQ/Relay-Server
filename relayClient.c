@@ -21,13 +21,9 @@
 #define PORT 9000			/* server port - this server listens on this port # */
 
 /* wire the relay circuit to the hardware pins defined below */
-#define BUTTON1		4		/* GPIO 23 is ***hardware pin 16*** and wiringPi pin 4 */
-#define BUTTON2   	5		/* GPIO 24 is ***hardware pin 18*** and wiringPi pin 5 */
-#define BUTTON3		6		/* GPIO 25 is ***hardware pin 22*** and wiringPi pin 6 */
-#define BUTTON4		27		/* GPIO 16 is ***hardware pin 36*** and wiringPi pin 27 */
-#define LEDPTT		25		/* GPIO 26 is ***hardware pin 37*** and wiringPi pin 25 */
-#define LEDNTWK		24		/* GPIO 19 is ***hardware pin 35*** and wiringPi pin 24 */
-
+#define BUTTON1   	5		/* GPIO 24 is ***hardware pin 18*** and wiringPi pin 5 */
+#define LEDPTT		24		/* GPIO 19 is ***hardware pin 35*** and wiringPi pin 24 */
+#define DEBOUNCE        5000		/* switch debounce time (usec) */
 
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -55,22 +51,10 @@ int main(void)
 
   /* set up the hardware ports */
   wiringPiSetup();
-  pinMode(BUTTON1, INPUT);				// set button as input
+  pinMode(BUTTON1, INPUT);			// set button as input
   pullUpDnControl(BUTTON1, PUD_UP);		// pull up resistor
 
-  pinMode(BUTTON2, INPUT);
-  pullUpDnControl(BUTTON2, PUD_UP);
-
-  pinMode(BUTTON3, INPUT);
-  pullUpDnControl(BUTTON3, PUD_UP);
-
-  pinMode(BUTTON4, INPUT);
-  pullUpDnControl(BUTTON4, PUD_UP);
-
-  pinMode(LEDNTWK, OUTPUT);			// led, lights when network is live
   pinMode(LEDPTT, OUTPUT);			// led, lights when relay is activated (response from server)
-
-  digitalWrite(LEDNTWK, 0);		// turn OFF initially
   digitalWrite(LEDPTT, 0);
 
   /* initialize the TCP/IP port */
@@ -115,46 +99,35 @@ int main(void)
 			  write(sockfd, sendBuff, strlen(sendBuff));
 			  continue;		// done
 		  }
+		  if (strncmp(recvBuff,"r1on",4)==0) {
+			fprintf(stderr,"relay 1 on\n");
+			continue;
+		  }
+		  if (strncmp(recvBuff,"r1off",5)==0) {
+			fprintf(stderr,"relay 1 off\n");
+			continue;
+		  }			
 		  fprintf(stderr,"Received unknown response from server: %s\n",recvBuff);
 		  continue;
 	  }
 
 	  // user pressed button
 	  if (digitalRead(BUTTON1)==0 && FLAG1) {		// button 1 pressed
+	          usleep(DEBOUNCE);	// debounce
 		  FLAG1 = 0;						// follows button value
 		  strcpy(sendBuff,"relay1_ON");		// send command to server
 		  write(sockfd, sendBuff, strlen(sendBuff));
-		  memset(recvBuff,0,sizeof(recvBuff));
-		  n = read(sockfd, recvBuff, sizeof(recvBuff)-1);
-		  recvBuff[n] = 0;
-		  printf("reply received: %s\n",recvBuff);
-
-		  if (strncmp(recvBuff,"r1on",4)==0) {		// good reply
-			  digitalWrite(LEDPTT,1);
-		  } else {
-			  digitalWrite(LEDPTT,0);			// bad or no replay - no LED
-		  }
-		  usleep(80000);		// debounce the button
 		  continue;
 	  }
 	  
 	  // user releases button
 	  if (digitalRead(BUTTON1)==1 && !FLAG1) {
+		  usleep(DEBOUNCE);		// debounce
 		  FLAG1 = 1;
 		  strcpy(sendBuff,"relay1_OFF");
 		  write(sockfd, sendBuff, strlen(sendBuff));
-		  memset(recvBuff,0,sizeof(recvBuff));
-		  n = read(sockfd, recvBuff, sizeof(recvBuff)-1);
-		  recvBuff[n] = 0;
-		  printf("reply received: %s\n",recvBuff);
-		  if (strncmp(recvBuff,"r1off",5)==0) {		// good reply
-			digitalWrite(LEDPTT,0);			// LED off
-		  } else {
-			digitalWrite(LEDPTT,1);			// keep LED on
-		  }
-		  usleep(80000);		// debounce the button
 		  continue;
-	}
+	  }
 
   }
 
