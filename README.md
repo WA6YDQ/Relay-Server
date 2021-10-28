@@ -1,10 +1,13 @@
 # Relay-Server
 
-These two programs allow you to turn a relay on/off from a remote location using two raspberry pi's 
-(tested on a PI-2 but any flavor should work fine). The control signals are sent over a TCP/IP
-network, so it is necessary for the server to be network accessable. The IP address must be known
-to the client computer, and is currently a #define statement in the source code. If both computers
-are on the same network then the server does not need to be publically accessable.
+These two programs allow you to turn a relay on/off from a remote location using a switch. 
+Two raspberry pi's (tested on a PI-2 but any flavor should work fine) are the controlling computers.
+The control signals are sent over a TCP/IP network, so it is necessary for the server (relay end) to 
+be network accessable. The IP address must be known to the client computer (the switch end), and is 
+currently a #define statement in the source code. If both computers are on the same network then the 
+server does not need to be publically accessable. These two computers can be used for other purposes
+while running these two programs. More than one switch/relay combination can be defined with a copy/paste.
+Notes are in the software. Using I/O expanders the number of switch/relays can be very large.
 
 The program relayServer.c runs on the PI with the relay attached.
 The program relayClient.c runs on the PI with the switch to turn on/off the remote relay.
