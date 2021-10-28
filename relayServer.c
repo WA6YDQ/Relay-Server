@@ -6,8 +6,8 @@
  * NOTE: only runs in IPv4, IPv6 not supported. 
  *
  * Before starting:
- * To access the GPIO hardware you will need to be part of the GPIO group.
- * Run this command:  
+ * To access the GPIO hardware you may need to be part of the GPIO group.
+ * Run this command if you get permission errors:  
  * 		sudo usermod -a -G gpio <your user name>
  *
  * This program uses the wiringPi version 2.50 libraries. Use apt-get install 
@@ -20,7 +20,8 @@
 
 
 #define PORT 9000			/* server port - this server listens on this port # */
-#define TIMEOUT 10			/* ping timeout */
+#define TIMEOUT 30			/* ping timeout in seconds */
+
 /* wire the relay circuit to the hardware pins defined below */
 #define RELAY1PIN	4		/* GPIO 23 is ***hardware pin 16*** and wiringPi pin 4 */
 
@@ -96,15 +97,15 @@ readloop:
 		  usleep(20000);		// delay 20 msec to keep cpu activity down
 
 		  /* since the network connection can be lost, test it by pinging the client 
-		   * every few seconds. If no response, close the connection, open any closed
+		   * every few seconds. If no response, close the connection, disable any active
 		   * relays then go back and look for new connections.
 		   */
 
-		  if (!FLAG && (time(NULL) > curtime+10)) {		// see if network connection is still up
+		  if (!FLAG && (time(NULL) > curtime+TIMEOUT)) {		// see if network connection is still up
 			  bytesAvailable = 0;
 			  strcpy(sendBuff,"PING");
 			  write(connfd, sendBuff, strlen(sendBuff));
-			  sleep(1);
+			  usleep(300000);	// long wait for response
 			  ioctl(connfd, FIONREAD, &bytesAvailable);
 			  if (bytesAvailable < 1) {		// no response - close connection
 				  fprintf(stderr,"No response from client - closing connection\n");
@@ -135,6 +136,13 @@ readloop:
 		  recvBuff[n] = 0;  	/* n is size of chars read */
 
 		  /* test response from client */
+
+		  /* client wants to know if we're still connected */
+		  if (strncmp(recvBuff, "ping",4)==0) {
+			  strcpy(sendBuff,"ok");
+			  write(connfd, sendBuff, strlen(sendBuff));
+			  continue;
+		  }
 
 		  /* terminate connection */
 		  if (strncmp(recvBuff,"CLOSE",5)==0) {

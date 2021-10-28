@@ -2,11 +2,11 @@
  *
  * k theis 10/2021
  * runs on raspberry pi.
- * NOTE: only runs in IPV4
+ * NOTE: only runs in IPv4
  *
  * Before starting:
- * To access the GPIO hardware you will need to be part of the GPIO group.
- * Run this command:  
+ * To access the GPIO hardware you may need to be part of the GPIO group.
+ * Run this command if you get permission errors:  
  * 		sudo usermod -a -G gpio <your user name>
  *
  * This program uses the wiringPi version 2.50 libraries. Use apt-get install 
@@ -17,8 +17,8 @@
  * 		cc -o relayClient relayClient.c -lwiringPi
 */
 
-#define SERVER_ADDR	"127.0.0.1"
-#define PORT 9000			/* server port - this server listens on this port # */
+#define SERVER_ADDR	"127.0.0.1"		/* CHANGE THIS TO YOUR SERVER IP ADDRESS! */
+#define PORT 9000					/* server port - this server listens on this port # */
 
 /* wire the relay circuit to the hardware pins defined below */
 #define BUTTON1   	5		/* GPIO 24 is ***hardware pin 18*** and wiringPi pin 5 */
@@ -46,16 +46,16 @@ int main(void)
   int sockfd = 0, n=0, bytesAvailable = 0;
   char sendBuff[1024], recvBuff[1024];
   struct sockaddr_in serv_addr;
-  time_t sec_now, sec_past;
-  int FLAG1 = 0;
+  time_t secs;
+  int FLAG1 = 0, pingFLAG = 0;
 
   /* set up the hardware ports */
   wiringPiSetup();
   pinMode(BUTTON1, INPUT);			// set button as input
-  pullUpDnControl(BUTTON1, PUD_UP);		// pull up resistor
+  pullUpDnControl(BUTTON1, PUD_UP);	// pull up resistor (still needs an external pull-up, but JIC)
 
   pinMode(LEDPTT, OUTPUT);			// led, lights when relay is activated (response from server)
-  digitalWrite(LEDPTT, 0);
+  digitalWrite(LEDPTT, 0);			// set OFF initially
 
   /* initialize the TCP/IP port */
   memset(recvBuff,0,sizeof(recvBuff));
@@ -68,6 +68,7 @@ int main(void)
   serv_addr.sin_port = htons(PORT);
   serv_addr.sin_addr.s_addr = inet_addr(SERVER_ADDR);
 
+recon:
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
 	  fprintf(stderr,"Connection Failed\n");
 	  return 1;
@@ -77,7 +78,7 @@ int main(void)
   n = read(sockfd, recvBuff, sizeof(recvBuff)-1);		// look for 'READY' sent at 1st connect
   recvBuff[n] = 0;
   if (strncmp(recvBuff,"READY",5)==0) {
-	  printf("%s\n",recvBuff);
+	  fprintf(stderr,"%s\n",recvBuff);
   } else {
 	  fprintf(stderr,"unknown server response: %s\n",recvBuff);
 	  close(sockfd);		// something wrong, abort now
@@ -86,51 +87,82 @@ int main(void)
   }
 
   FLAG1=1;		// initialize for later
+  secs = time(NULL);
 
   while (1) {		// do forever
 	  usleep(5000);		// keep processor from hitting 100%
 
 	  ioctl(sockfd, FIONREAD, &bytesAvailable);
-	  if (bytesAvailable > 0) {		// server sent up a message
+	  if (bytesAvailable != 0) {		// server sent us a message
 		  n = read(sockfd, recvBuff, sizeof(recvBuff)-1);
 		  recvBuff[n]=0;
+
 		  // see what was sent
+		  fprintf(stderr,"server sent: %s - ",recvBuff);
+		  
 		  if (strncmp(recvBuff,"PING",4)==0) {		// we got pinged - send response
 			  strcpy(sendBuff,"OK");
 			  write(sockfd, sendBuff, strlen(sendBuff));
+			  fprintf(stderr,"sent OK\n");
+			  secs = time(NULL);		// reset timeout clock
 			  continue;		// done
 		  }
+		  
+
 		  if (strncmp(recvBuff,"r1on",4)==0) {
 			digitalWrite(LEDPTT,1);
 			fprintf(stderr,"relay 1 on\n");
 			continue;
 		  }
+		  
 		  if (strncmp(recvBuff,"r1off",5)==0) {
 			digitalWrite(LEDPTT,0);
 			fprintf(stderr,"relay 1 off\n");
 			continue;
 		  }			
+		  
 		  fprintf(stderr,"Received unknown response from server: %s\n",recvBuff);
 		  continue;
 	  }
 
 	  // user pressed button
-	  if (digitalRead(BUTTON1)==0 && FLAG1) {		// button 1 pressed
+
+	  if (digitalRead(BUTTON1)==0 && FLAG1==0) continue;	// button currently pressed and ack'd
+	  if (digitalRead(BUTTON1)==1 && FLAG1==1) continue;	// button currently released and ack'd
+
+	  if (digitalRead(BUTTON1)==0 && FLAG1==1) {		// button 1 pressed
 	          usleep(DEBOUNCE);	// debounce
+		  if (digitalRead(BUTTON1)==1) continue;		// glitch
 		  FLAG1 = 0;						// follows button value
 		  strcpy(sendBuff,"relay1_ON");		// send command to server
 		  write(sockfd, sendBuff, strlen(sendBuff));
 		  continue;
 	  }
 	  
-	  // user releases button
-	  if (digitalRead(BUTTON1)==1 && !FLAG1) {
+	  // user released button
+	  if (digitalRead(BUTTON1)==1 && FLAG1==0) {
 		  usleep(DEBOUNCE);		// debounce
 		  FLAG1 = 1;
 		  strcpy(sendBuff,"relay1_OFF");
 		  write(sockfd, sendBuff, strlen(sendBuff));
 		  continue;
 	  }
+	
+	  /* keep alive - no response from server, test connection */
+     	 if (time(NULL) > secs+35) {
+        	fprintf(stderr,"pinging server\n");
+        	secs = time(NULL);      // reset timer
+        	strcpy(sendBuff,"ping");
+        	write(sockfd, sendBuff, strlen(sendBuff));
+        	n = read(sockfd, recvBuff, sizeof(recvBuff)-1);
+			recvBuff[n] = 0;
+			if (strncmp(recvBuff,"ok",2)==0) continue;		// still connected
+			// lost our connection
+			goto recon;
+	  }
+
+
+	 continue;		// not needed, but eases clarity
 
   }
 
