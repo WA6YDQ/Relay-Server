@@ -45,4 +45,24 @@ Next, start the client program (relayClient). When the switch on the client side
 energize and the LED on the client will light. When the switch on the client side is turned off, the relay
 will turn off and the LED on the client will also turn off.
 
+Building the programs:
 
+The hardware on the PI's are controlled with the wiringPi library. If it is not already installed run:
+
+sudo apt-get install wiringpi
+
+On the server end (relayServer.c) the TCP/IP port is defined as 9000. Change this if needed. If you do, don't
+forget to make the same change in the relayClient.c file.  Then build the server program:
+
+cc -o relayServer relayServer.c -lwiringPi
+
+On the client computer, set the SERVER_ADDR to the IP address of the server computer. This is 
+defined just after the comments. If you changed the port number of the server, also change the 
+port number here.
+
+Now build the client:
+
+cc -o relayClient relayClient.c -lwiringPi
+
+Start the client (after making sure both computers on connected to a network.
+The server can be left running, and the client turn on/off as need be.
