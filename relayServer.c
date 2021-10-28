@@ -94,22 +94,23 @@ readloop:
 	  curtime = time(NULL);
 	  while (1) {	// while connected
 		  
-		  usleep(20000);		// delay 20 msec to keep cpu activity down
+		  usleep(5000);		// delay to keep cpu activity down
 
 		  /* since the network connection can be lost, test it by pinging the client 
 		   * every few seconds. If no response, close the connection, disable any active
 		   * relays then go back and look for new connections.
 		   */
 
-		  if (!FLAG && (time(NULL) > curtime+TIMEOUT)) {		// see if network connection is still up
+		  if (time(NULL) > curtime+TIMEOUT) {		// see if network connection is still up
 			  bytesAvailable = 0;
 			  strcpy(sendBuff,"PING");
 			  write(connfd, sendBuff, strlen(sendBuff));
-			  usleep(300000);	// long wait for response
+			  usleep(500000);	// long wait for response
 			  ioctl(connfd, FIONREAD, &bytesAvailable);
-			  if (bytesAvailable < 1) {		// no response - close connection
+			  if (bytesAvailable == 0) {		// no response - close connection
 				  fprintf(stderr,"No response from client - closing connection\n");
 				  close(connfd);
+				  FLAG=0;
 				  digitalWrite(RELAY1PIN,0); // turn off relay
 				  fprintf(stderr,"relay 1 OFF\n");
 				  goto resumeLoop;
@@ -118,7 +119,7 @@ readloop:
 			 n = read(connfd, recvBuff, sizeof(recvBuff)-1);
 			 recvBuff[n] = 0;
 			 if (strncmp(recvBuff,"OK",2) != 0) {	// bad response, close connection
-				 fprintf(stderr,"Bad response from client - closing connection\n");
+				 fprintf(stderr,"Bad response from client (%s) - closing connection\n",recvBuff);
 				 close(connfd);
 				 digitalWrite(RELAY1PIN,0); // turn off relay
 				 fprintf(stderr,"relay 1 OFF\n");
@@ -147,6 +148,7 @@ readloop:
 		  /* terminate connection */
 		  if (strncmp(recvBuff,"CLOSE",5)==0) {
 			  close(connfd);
+			  FLAG=0;
 			  digitalWrite(RELAY1PIN,0); // turn off relay
 			  fprintf(stderr,"relay 1 OFF\n");
 			  fprintf(stderr,"Received CLOSE from client\n");
@@ -177,7 +179,7 @@ readloop:
 
 	}
 
-	  goto readloop;	/* connection broken - continue */
+	  goto resumeLoop;	/* connection broken - continue */
   }
   	  
   // should never get to this point
