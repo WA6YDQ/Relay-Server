@@ -1,7 +1,7 @@
 # Relay-Server
 
 These two programs allow you to turn a relay on/off from a remote location using two raspberry pi's 
-(tested on a PI-2 but any flavor should work fine). The control signals are send over a TCP/IP
+(tested on a PI-2 but any flavor should work fine). The control signals are sent over a TCP/IP
 network, so it is necessary for the server to be network accessable. The IP address must be known
 to the client computer, and is currently a #define statement in the source code. If both computers
 are on the same network then the server does not need to be publically accessable.
