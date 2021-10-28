@@ -67,5 +67,5 @@ Now build the client:
 
 cc -o relayClient relayClient.c -lwiringPi
 
-Start the client (after making sure both computers on connected to a network.
+Start the client after the server. (Make sure both computers are connected to a network.)
 The server can be left running, and the client turn on/off as need be.
