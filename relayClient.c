@@ -23,7 +23,7 @@
 /* wire the relay circuit to the hardware pins defined below */
 #define BUTTON1   	5		/* GPIO 24 is ***hardware pin 18*** and wiringPi pin 5 */
 #define LEDPTT		24		/* GPIO 19 is ***hardware pin 35*** and wiringPi pin 24 */
-#define DEBOUNCE        5000		/* switch debounce time (usec) */
+#define DEBOUNCE        10000		/* switch debounce time (usec) */
 
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -88,6 +88,7 @@ int main(void)
   FLAG1=1;		// initialize for later
 
   while (1) {		// do forever
+	  usleep(5000);		// keep processor from hitting 100%
 
 	  ioctl(sockfd, FIONREAD, &bytesAvailable);
 	  if (bytesAvailable > 0) {		// server sent up a message
@@ -100,10 +101,12 @@ int main(void)
 			  continue;		// done
 		  }
 		  if (strncmp(recvBuff,"r1on",4)==0) {
+			digitalWrite(LEDPTT,1);
 			fprintf(stderr,"relay 1 on\n");
 			continue;
 		  }
 		  if (strncmp(recvBuff,"r1off",5)==0) {
+			digitalWrite(LEDPTT,0);
 			fprintf(stderr,"relay 1 off\n");
 			continue;
 		  }			
