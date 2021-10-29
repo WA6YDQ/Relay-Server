@@ -24,7 +24,7 @@
 
 /* wire the relay circuit to the hardware pins defined below */
 #define RELAY1PIN	4		/* GPIO 23 is ***hardware pin 16*** and wiringPi pin 4 */
-
+/* add more hardware defines here */
 
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -56,6 +56,7 @@ int main(void)
   /* set up the hardware ports */
   wiringPiSetup();
   pinMode(RELAY1PIN, OUTPUT);
+  /* add more pinMode commands for more hardware */
 
   /* initialize the TCP/IP port */
   printf("Starting server:\n");
@@ -72,7 +73,7 @@ int main(void)
   bind(listenfd, (struct sockaddr*)&serv_addr,sizeof(serv_addr));
   
   if(listen(listenfd, 10) == -1){
-      printf("ERROR - Failed to listen\n");
+      printf("ERROR - Failed to listen\n");		/* this may happen due to bad permissions, etc */
       return -1;
   }     
 
@@ -87,11 +88,11 @@ resumeLoop:    /* goto's are bad, but... */
       write(connfd, sendBuff, strlen(sendBuff));
  
 	  /* look for commands from client */
-readloop:
-	  /* init buffer */
+	  
 	  memset(&recvBuff,0,sizeof(recvBuff));
 	  n = 0;
 	  curtime = time(NULL);
+
 	  while (1) {	// while connected
 		  
 		  usleep(5000);		// delay to keep cpu activity down
@@ -111,8 +112,11 @@ readloop:
 				  fprintf(stderr,"No response from client - closing connection\n");
 				  close(connfd);
 				  FLAG=0;
+
+				  /* copy/paste to add more hardware */
 				  digitalWrite(RELAY1PIN,0); // turn off relay
 				  fprintf(stderr,"relay 1 OFF\n");
+
 				  goto resumeLoop;
 			 }
 			 // buffer has data - test for OK
@@ -121,8 +125,11 @@ readloop:
 			 if (strncmp(recvBuff,"OK",2) != 0) {	// bad response, close connection
 				 fprintf(stderr,"Bad response from client (%s) - closing connection\n",recvBuff);
 				 close(connfd);
+				 
+				 /* copy/paste to add more hardware */
 				 digitalWrite(RELAY1PIN,0); // turn off relay
 				 fprintf(stderr,"relay 1 OFF\n");
+
 				 goto resumeLoop;
 		     }
 			 curtime = time(NULL);		// reset timer
@@ -149,13 +156,16 @@ readloop:
 		  if (strncmp(recvBuff,"CLOSE",5)==0) {
 			  close(connfd);
 			  FLAG=0;
+			  
+			  /* copy/paste to add more hardware */
 			  digitalWrite(RELAY1PIN,0); // turn off relay
 			  fprintf(stderr,"relay 1 OFF\n");
 			  fprintf(stderr,"Received CLOSE from client\n");
-                          goto resumeLoop;
+
+              goto resumeLoop;	// look for new connections
 		  }
 
-
+		 /* copy/paste these to add more hardware */
 
 		 /* Relay #1 */
 		 if (strncmp(recvBuff,"relay1_ON",9)==0) {
@@ -184,8 +194,11 @@ readloop:
   	  
   // should never get to this point
   fprintf(stderr,"Unexpected failure - stopping.\n");
+  
+  /* copy/paste to add more hardware */
   fprintf(stderr,"relay 1 OFF\n");
   digitalWrite(RELAY1PIN,0);		// turn OFF relay
+
   close(connfd);    
   return 0;
 }

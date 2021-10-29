@@ -18,12 +18,16 @@
 */
 
 #define SERVER_ADDR	"127.0.0.1"		/* CHANGE THIS TO YOUR SERVER IP ADDRESS! */
-#define PORT 9000					/* server port - this server listens on this port # */
+#define PORT 9000					/* server port - the server listens on this port # */
 
 /* wire the relay circuit to the hardware pins defined below */
 #define BUTTON1   	5		/* GPIO 24 is ***hardware pin 18*** and wiringPi pin 5 */
 #define LEDPTT		24		/* GPIO 19 is ***hardware pin 35*** and wiringPi pin 24 */
+/* copy/paste above to add new hardware */
+
 #define DEBOUNCE        10000		/* switch debounce time (usec) */
+#define DEBUG 0						/* set to 1 to display messages on stderr */
+
 
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -56,6 +60,8 @@ int main(void)
 
   pinMode(LEDPTT, OUTPUT);			// led, lights when relay is activated (response from server)
   digitalWrite(LEDPTT, 0);			// set OFF initially
+  /* copy/paste above to add new hardware */
+
 
   /* initialize the TCP/IP port */
   memset(recvBuff,0,sizeof(recvBuff));
@@ -98,26 +104,31 @@ recon:
 		  recvBuff[n]=0;
 
 		  // see what was sent
-		  fprintf(stderr,"server sent: %s - ",recvBuff);
+		  if (DEBUG)
+		  	  fprintf(stderr,"server sent: %s - ",recvBuff);
 		  
 		  if (strncmp(recvBuff,"PING",4)==0) {		// we got pinged - send response
 			  strcpy(sendBuff,"OK");
 			  write(sockfd, sendBuff, strlen(sendBuff));
-			  fprintf(stderr,"sent OK\n");
+			  if (DEBUG) 
+			  	  fprintf(stderr,"sent OK\n");
 			  secs = time(NULL);		// reset timeout clock
 			  continue;		// done
 		  }
 		  
-
+		  /* copy/paste to add hardware */
 		  if (strncmp(recvBuff,"r1on",4)==0) {
 			digitalWrite(LEDPTT,1);
-			fprintf(stderr,"relay 1 on\n");
+			if (DEBUG) 
+				fprintf(stderr,"relay 1 on\n");
 			continue;
 		  }
 		  
+		  /* copy/paste to add hardware */
 		  if (strncmp(recvBuff,"r1off",5)==0) {
 			digitalWrite(LEDPTT,0);
-			fprintf(stderr,"relay 1 off\n");
+			if (DEBUG) 
+				fprintf(stderr,"relay 1 off\n");
 			continue;
 		  }			
 		  
@@ -127,6 +138,7 @@ recon:
 
 	  // user pressed button
 
+	  /* copy/paste to add more hardware */
 	  if (digitalRead(BUTTON1)==0 && FLAG1==0) continue;	// button currently pressed and ack'd
 	  if (digitalRead(BUTTON1)==1 && FLAG1==1) continue;	// button currently released and ack'd
 
@@ -139,6 +151,7 @@ recon:
 		  continue;
 	  }
 	  
+	  /* copy/paste to add more hardware */
 	  // user released button
 	  if (digitalRead(BUTTON1)==1 && FLAG1==0) {
 		  usleep(DEBOUNCE);		// debounce
@@ -150,7 +163,8 @@ recon:
 	
 	  /* keep alive - no response from server, test connection */
      	 if (time(NULL) > secs+35) {
-        	fprintf(stderr,"pinging server\n");
+        	if (DEBUG) 
+			 	fprintf(stderr,"pinging server\n");
         	secs = time(NULL);      // reset timer
         	strcpy(sendBuff,"ping");
         	write(sockfd, sendBuff, strlen(sendBuff));
