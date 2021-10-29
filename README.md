@@ -32,7 +32,7 @@ relay coil connects to the drain of a 2N7000 fet. The source goes to ground, and
 output pin of the raspberry pi (currently defined as hardware pin 16 (GPIO 23).
 
 On the client end, one end of the switch goes to ground. The other end of the switch goes to hardware 
-pin 18 (GPIO 24). There needs to be a pull-up resistor on the switch (the internal pull-up resistors
+pin 18 (GPIO 24). There needs to be a pull-up resistor (4.7k ohm is a good value) on the switch (the internal pull-up resistors
 are not reliably controlled due to changes in the rasbian image changing). One end goes to +3.3v, obtained
 in the PI's hardware pin 1 of the PI's 40 pin expansion port. The other end of the resistor connects to 
 hardware pin 18. This puts the hardware at 3.3 volts until the switch is closed, at which point the pin goes
